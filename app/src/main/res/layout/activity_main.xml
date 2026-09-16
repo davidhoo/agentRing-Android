@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_main"
+    android:keepScreenOn="true"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- 顶部状态栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- 蓝牙设备名 Pill -->
+        <TextView
+            android:id="@+id/deviceBtNameView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_pill"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="AgentRing-Phone"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <!-- 蓝牙连接状态 Pill -->
+        <LinearLayout
+            android:id="@+id/connectionStatusLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_pill"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp">
+
+            <View
+                android:id="@+id/connectionStatusDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_status_dot" />
+
+            <TextView
+                android:id="@+id/connectionStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_waiting"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 中间主内容区域（支持自适应） -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- 暂无数据提示 -->
+        <LinearLayout
+            android:id="@+id/emptyStateLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:alpha="0.4"
+                android:src="@drawable/ic_launcher"
+                android:contentDescription="Empty" />
+
+            <TextView
+                android:id="@+id/emptyHintText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:text="@string/no_data_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="在 Mac 蓝牙设置中配对并连接此设备"
+                android:textColor="@color/text_tertiary"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPairMac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="与附近电脑发起配对"
+                android:visibility="gone"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                app:backgroundTint="@color/codex_primary"
+                app:cornerRadius="20dp" />
+        </LinearLayout>
+
+        <!-- 横屏卡片容器（水平滚动/居中） -->
+        <HorizontalScrollView
+            android:id="@+id/cardsHorizontalScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/cardsHorizontalContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- 竖屏卡片容器（垂直滚动） -->
+        <ScrollView
+            android:id="@+id/cardsVerticalScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/cardsVerticalContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="vertical" />
+        </ScrollView>
+    </FrameLayout>
+
+    <!-- 底部状态栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="6dp">
+
+        <TextView
+            android:id="@+id/lastUpdatedText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="等待同步…"
+            android:textColor="@color/text_tertiary"
+            android:textSize="11sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/versionText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AgentRing Monitor v1.0"
+            android:textColor="@color/text_tertiary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+</LinearLayout>

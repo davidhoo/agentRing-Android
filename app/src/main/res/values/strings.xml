@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AgentRing</string>
+    <string name="bt_waiting">等待电脑连接…</string>
+    <string name="bt_connected">已连接：%1$s</string>
+    <string name="bt_disconnected">蓝牙已断开</string>
+    <string name="bt_device_name">蓝牙名：%1$s</string>
+    <string name="remaining_label">剩余额度</string>
+    <string name="resets_in">重置倒计时：%1$s</string>
+    <string name="resets_at">重置时间：%1$s</string>
+    <string name="no_data_hint">等待 AgentRing 推送额度数据…</string>
+    <string name="last_updated">更新时间：%1$s</string>
+    <string name="permission_required">需要蓝牙权限以作为副屏接收数据</string>
+</resources>

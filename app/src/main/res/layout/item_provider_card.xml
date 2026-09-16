@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardBackgroundColor="@color/bg_card"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:cardPreventCornerOverlap="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <!-- 卡片头部：图标/名称 + 状态/模式标签 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/providerColorIndicator"
+                android:layout_width="4dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/codex_primary" />
+
+            <TextView
+                android:id="@+id/providerName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Codex"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/remainingModeTag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp"
+                android:text="@string/remaining_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- 核心环形进度条 -->
+        <FrameLayout
+            android:id="@+id/ringFrame"
+            android:layout_width="match_parent"
+            android:layout_height="115dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="2dp">
+
+            <app.agentring.android.ui.ActivityRingView
+                android:id="@+id/activityRingView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="center" />
+        </FrameLayout>
+
+        <!-- 主窗口描述与重置倒计时 -->
+        <TextView
+            android:id="@+id/primaryLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="主窗口剩余 85%"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/resetCountdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:text="重置倒计时：2小时 45分"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <!-- 次级窗口额度（如周级窗口或 API 模型池） -->
+        <LinearLayout
+            android:id="@+id/secondaryLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_pill"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="5dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/secondaryLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="7天窗口剩余"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/secondaryPercent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="92%"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 额外额度信息（Credits / On-demand 剩余） -->
+        <TextView
+            android:id="@+id/extraInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Credits 余额: $25.00"
+            android:textColor="@color/text_tertiary"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
