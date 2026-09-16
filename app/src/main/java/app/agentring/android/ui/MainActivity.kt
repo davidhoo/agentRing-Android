@@ -1,6 +1,7 @@
 package app.agentring.android.ui
 
 import android.Manifest
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
@@ -18,7 +19,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import app.agentring.android.R
 import app.agentring.android.databinding.ActivityMainBinding
-import app.agentring.android.databinding.ItemProviderCardBinding
+import app.agentring.android.databinding.ItemProviderColumnBinding
 import app.agentring.android.model.ProviderData
 import app.agentring.android.model.SyncPayload
 import app.agentring.android.service.BluetoothServerManager
@@ -35,6 +36,9 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 1. 需求：启动后，开启横屏模式
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
         // 4. 需求：程序运行后，屏幕常亮
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -47,8 +51,24 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
         bluetoothManager = BluetoothServerManager(this, this)
         binding.deviceBtNameView.text = bluetoothManager?.deviceBluetoothName ?: "AgentRing"
 
+        registerReceiver(mockDataReceiver, android.content.IntentFilter("app.agentring.android.MOCK_DATA"))
+
         checkAndRequestPermissions()
         handlePairIntent(intent)
+    }
+
+    private val mockDataReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            val json = intent?.getStringExtra("payload") ?: return
+            try {
+                val payload = com.google.gson.Gson().fromJson(json, SyncPayload::class.java)
+                if (payload != null) {
+                    onDataReceived(payload)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AgentRingBT", "Mock data error", e)
+            }
+        }
     }
 
     override fun onNewIntent(intent: android.content.Intent?) {
@@ -72,6 +92,9 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     override fun onDestroy() {
         super.onDestroy()
         bluetoothManager?.stop()
+        try {
+            unregisterReceiver(mockDataReceiver)
+        } catch (_: Exception) {}
     }
 
     private fun enableImmersiveMode() {
@@ -159,12 +182,12 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
         val providers = payload.providers
         if (providers.isEmpty()) {
             binding.emptyStateLayout.visibility = View.VISIBLE
-            binding.cardsHorizontalScrollView.visibility = View.GONE
-            binding.cardsVerticalScrollView.visibility = View.GONE
+            binding.columnsContainer.visibility = View.GONE
             return
         }
 
         binding.emptyStateLayout.visibility = View.GONE
+        binding.columnsContainer.visibility = View.VISIBLE
         binding.lastUpdatedText.text = getString(R.string.last_updated, timeFormat.format(Date()))
 
         renderDashboard(providers)
@@ -178,126 +201,129 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     }
 
     /**
-     * 5. 需求：界面只显示agentRing dashboard 的那样，配置了几个，就显示几个，自适应布局。
+     * 需求：不要卡片模式，直接绘图分割，不需要交互，全部横向列在界面上，一屏展示所有信息。
+     * 根据项目多少决定环的大小。
      */
     private fun renderDashboard(providers: List<ProviderData>) {
         cachedProviders = providers
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val container = binding.columnsContainer
+        container.removeAllViews()
+
         val count = providers.size
+        // 根据项目多少决定环的高度/尺寸：
+        // 1项 -> 大环 (~150dp)
+        // 2项 -> 中大环 (~130dp)
+        // 3项 -> 中环 (~110dp)
+        // 4项及以上 -> 紧凑环 (~92dp)
+        val ringHeightDp = when (count) {
+            1 -> 150
+            2 -> 130
+            3 -> 110
+            else -> 92
+        }
 
-        if (isLandscape) {
-            binding.cardsVerticalScrollView.visibility = View.GONE
-            binding.cardsHorizontalScrollView.visibility = View.VISIBLE
-            val container = binding.cardsHorizontalContainer
-            container.removeAllViews()
+        for (i in providers.indices) {
+            val provider = providers[i]
 
-            for (provider in providers) {
-                val cardBinding = ItemProviderCardBinding.inflate(layoutInflater, container, false)
-                bindProviderCard(cardBinding, provider, count, isLandscape = true)
-                container.addView(cardBinding.root)
+            // 厂商列之间的直接细分割线（仿 macOS agentRing ProviderDivider）
+            if (i > 0) {
+                val divider = View(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(1), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                        val marginV = dpToPx(14)
+                        topMargin = marginV
+                        bottomMargin = marginV
+                    }
+                    setBackgroundColor(Color.parseColor("#26FFFFFF"))
+                }
+                container.addView(divider)
             }
-        } else {
-            binding.cardsHorizontalScrollView.visibility = View.GONE
-            binding.cardsVerticalScrollView.visibility = View.VISIBLE
-            val container = binding.cardsVerticalContainer
-            container.removeAllViews()
 
-            for (provider in providers) {
-                val cardBinding = ItemProviderCardBinding.inflate(layoutInflater, container, false)
-                bindProviderCard(cardBinding, provider, count, isLandscape = false)
-                container.addView(cardBinding.root)
-            }
+            val columnBinding = ItemProviderColumnBinding.inflate(layoutInflater, container, false)
+            bindProviderColumn(columnBinding, provider, count, ringHeightDp)
+            container.addView(columnBinding.root)
         }
     }
 
-    private fun bindProviderCard(
-        cardBinding: ItemProviderCardBinding,
+    private fun bindProviderColumn(
+        columnBinding: ItemProviderColumnBinding,
         provider: ProviderData,
         totalCount: Int,
-        isLandscape: Boolean
+        ringHeightDp: Int
     ) {
-        val lp = cardBinding.root.layoutParams as LinearLayout.LayoutParams
-
-        if (isLandscape) {
-            cardBinding.ringFrame.layoutParams.height = dpToPx(110)
-            when (totalCount) {
-                1 -> {
-                    lp.width = dpToPx(380)
-                    lp.weight = 0f
-                }
-                2 -> {
-                    lp.width = dpToPx(320)
-                    lp.weight = 0f
-                }
-                else -> {
-                    lp.width = dpToPx(270)
-                    lp.weight = 0f
-                }
-            }
-            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
-        } else {
-            // 竖屏
-            cardBinding.ringFrame.layoutParams.height = dpToPx(150)
-            lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+        val lp = columnBinding.root.layoutParams as LinearLayout.LayoutParams
+        if (totalCount == 1) {
+            lp.width = dpToPx(380)
             lp.weight = 0f
+        } else {
+            lp.width = 0
+            lp.weight = 1f
         }
-        cardBinding.root.layoutParams = lp
+        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+        columnBinding.root.layoutParams = lp
 
-        cardBinding.providerName.text = provider.name
+        // 动态根据厂商数量设定环高度
+        columnBinding.ringContainer.layoutParams.height = dpToPx(ringHeightDp)
 
-        // 配色与图标指示条
+        // 厂商名称与指示色
+        columnBinding.providerName.text = provider.name
         val (primaryColor, secondaryColor) = getProviderColors(provider.id)
-        cardBinding.providerColorIndicator.setBackgroundColor(primaryColor)
+        columnBinding.providerColorIndicator.setBackgroundColor(primaryColor)
 
-        // 2. 需求：只用来显示剩余额度
+        // 剩余额度圆环数值与顺滑动画
         val primary = provider.primary
         val secondary = provider.secondary
 
         val primaryPercent = primary?.remainingPercent ?: 100.0
         val secondaryPercent = secondary?.remainingPercent
 
-        cardBinding.activityRingView.setColors(primaryColor, secondaryColor)
-        cardBinding.activityRingView.setValues(primaryPercent, secondaryPercent, animate = true)
+        columnBinding.activityRingView.setColors(primaryColor, secondaryColor)
+        columnBinding.activityRingView.setValues(primaryPercent, secondaryPercent, animate = true)
 
-        // 主窗口描述
+        // 主窗口描述与详情
         val primaryDesc = primary?.label ?: "主窗口"
         val primaryDetails = primary?.remainingDetails
         if (!primaryDetails.isNullOrBlank()) {
-            cardBinding.primaryLabel.text = "$primaryDesc 剩余 $primaryDetails"
+            columnBinding.primaryLabel.text = "$primaryDesc 剩余 $primaryDetails"
         } else {
-            cardBinding.primaryLabel.text = "$primaryDesc 剩余 ${primaryPercent.toInt()}%"
+            columnBinding.primaryLabel.text = "$primaryDesc 剩余 ${primaryPercent.toInt()}%"
         }
 
         // 重置倒计时
         val resetStr = primary?.resetsAt
         if (!resetStr.isNullOrBlank()) {
-            cardBinding.resetCountdown.visibility = View.VISIBLE
-            cardBinding.resetCountdown.text = getString(R.string.resets_in, resetStr)
+            columnBinding.resetCountdown.visibility = View.VISIBLE
+            columnBinding.resetCountdown.text = getString(R.string.resets_in, resetStr)
         } else {
-            cardBinding.resetCountdown.visibility = View.GONE
+            columnBinding.resetCountdown.visibility = View.GONE
         }
 
         // 次级窗口（7天周级 / API 等）
         if (secondary != null) {
-            cardBinding.secondaryLayout.visibility = View.VISIBLE
+            columnBinding.secondaryLayout.visibility = View.VISIBLE
             val secLabel = secondary.label ?: "周级窗口"
-            cardBinding.secondaryLabel.text = "$secLabel 剩余"
+            columnBinding.secondaryLabel.text = "$secLabel 剩余"
             if (!secondary.remainingDetails.isNullOrBlank()) {
-                cardBinding.secondaryPercent.text = secondary.remainingDetails
+                columnBinding.secondaryPercent.text = secondary.remainingDetails
             } else {
-                cardBinding.secondaryPercent.text = "${secondaryPercent?.toInt() ?: 0}%"
+                columnBinding.secondaryPercent.text = "${secondaryPercent?.toInt() ?: 0}%"
             }
         } else {
-            cardBinding.secondaryLayout.visibility = View.GONE
+            columnBinding.secondaryLayout.visibility = View.GONE
         }
 
         // 额外信息（Credits 余额等）
         if (!provider.extraInfo.isNullOrBlank()) {
-            cardBinding.extraInfo.visibility = View.VISIBLE
-            cardBinding.extraInfo.text = provider.extraInfo
+            columnBinding.extraInfo.visibility = View.VISIBLE
+            columnBinding.extraInfo.text = provider.extraInfo
         } else {
-            cardBinding.extraInfo.visibility = View.GONE
+            columnBinding.extraInfo.visibility = View.GONE
+        }
+
+        // 紧凑排版微调：当>=3项时适当微调字体，确保单屏绝不截断
+        if (totalCount >= 3) {
+            columnBinding.providerName.textSize = 15f
+            columnBinding.primaryLabel.textSize = 11.5f
+            columnBinding.resetCountdown.textSize = 10f
         }
     }
 

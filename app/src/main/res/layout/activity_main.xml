@@ -129,37 +129,14 @@
                 app:cornerRadius="20dp" />
         </LinearLayout>
 
-        <!-- 横屏卡片容器（水平滚动/居中） -->
-        <HorizontalScrollView
-            android:id="@+id/cardsHorizontalScrollView"
+        <!-- 横向并列展示容器（无卡片、不滚动、一屏展示所有） -->
+        <LinearLayout
+            android:id="@+id/columnsContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:id="@+id/cardsHorizontalContainer"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
-
-        <!-- 竖屏卡片容器（垂直滚动） -->
-        <ScrollView
-            android:id="@+id/cardsVerticalScrollView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:id="@+id/cardsVerticalContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="vertical" />
-        </ScrollView>
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone" />
     </FrameLayout>
 
     <!-- 底部状态栏 -->
