@@ -13,7 +13,7 @@ import kotlin.math.min
 
 /**
  * 仿 AgentRing 原生圆环指示器
- * 核心展示：剩余百分比、双层同心圆环（主窗口 + 次窗口）、顺滑动画
+ * 核心展示：剩余百分比、双层同心圆环（主窗口 + 次窗口）、顺滑动画、纯净居中百分比
  */
 class ActivityRingView @JvmOverloads constructor(
     context: Context,
@@ -29,11 +29,9 @@ class ActivityRingView @JvmOverloads constructor(
     private var targetSecondaryPercent: Float = 100f
     private var hasSecondaryRing: Boolean = false
 
-    private var primaryColor: Int = Color.parseColor("#10A37F")
-    private var secondaryColor: Int = Color.parseColor("#059669")
-    private var trackColor: Int = Color.parseColor("#232733")
-    private var textColor: Int = Color.parseColor("#F3F4F6")
-    private var subTextColor: Int = Color.parseColor("#9CA3AF")
+    private var primaryColor: Int = Color.parseColor("#617FA8")
+    private var secondaryColor: Int = Color.parseColor("#4E6B93")
+    private var trackColor: Int = Color.parseColor("#EDF0F5")
 
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -48,17 +46,6 @@ class ActivityRingView @JvmOverloads constructor(
     private val secondaryArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
-    }
-
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        color = textColor
-        isFakeBoldText = true
-    }
-
-    private val subTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        color = subTextColor
     }
 
     private val primaryBounds = RectF()
@@ -125,11 +112,12 @@ class ActivityRingView @JvmOverloads constructor(
         val size = min(w, h)
         if (size <= 0) return
 
-        val strokeWidth = size * 0.09f
-        val gap = strokeWidth * 0.35f
-
         val centerX = w / 2f
         val centerY = h / 2f
+
+        // 仿 macOS agentRing 最新 HIG 规范：线宽加粗至约 12%，内外环预留 4.5% 呼吸间距
+        val strokeWidth = size * 0.12f
+        val gap = size * 0.045f
 
         // 1. 绘制外圈 (Primary Ring)
         val outerRadius = (size - strokeWidth) / 2f
@@ -147,15 +135,17 @@ class ActivityRingView @JvmOverloads constructor(
         primaryArcPaint.strokeWidth = strokeWidth
         primaryArcPaint.color = primaryColor
         val primarySweep = (displayPrimaryPercent / 100f) * 360f
-        if (primarySweep > 0.5f) {
+        if (primarySweep >= 0.5f) {
             canvas.drawArc(primaryBounds, -90f, primarySweep, false, primaryArcPaint)
+        } else {
+            // 0% 用量圆环保留占位端点（12 点钟位置以 round 线帽绘制与线宽同一直径的起点圆点）
+            canvas.drawArc(primaryBounds, -90f, 0.1f, false, primaryArcPaint)
         }
 
         // 2. 如果存在次级窗口，绘制内圈 (Secondary Ring)
         if (hasSecondaryRing) {
-            val innerStrokeWidth = strokeWidth * 0.75f
-            val innerRadius = outerRadius - strokeWidth / 2f - gap - innerStrokeWidth / 2f
-            if (innerRadius > 0) {
+            val innerRadius = outerRadius - strokeWidth - gap
+            if (innerRadius > strokeWidth / 2f) {
                 secondaryBounds.set(
                     centerX - innerRadius,
                     centerY - innerRadius,
@@ -163,31 +153,22 @@ class ActivityRingView @JvmOverloads constructor(
                     centerY + innerRadius
                 )
 
-                trackPaint.strokeWidth = innerStrokeWidth
+                trackPaint.strokeWidth = strokeWidth
                 canvas.drawArc(secondaryBounds, -90f, 360f, false, trackPaint)
 
-                secondaryArcPaint.strokeWidth = innerStrokeWidth
+                secondaryArcPaint.strokeWidth = strokeWidth
                 secondaryArcPaint.color = secondaryColor
                 val secondarySweep = (displaySecondaryPercent / 100f) * 360f
-                if (secondarySweep > 0.5f) {
+                if (secondarySweep >= 0.5f) {
                     canvas.drawArc(secondaryBounds, -90f, secondarySweep, false, secondaryArcPaint)
+                } else {
+                    // 0% 用量圆环保留占位端点
+                    canvas.drawArc(secondaryBounds, -90f, 0.1f, false, secondaryArcPaint)
                 }
             }
         }
 
-        // 3. 绘制中心剩余百分比大字
-        val mainTextSize = size * 0.22f
-        textPaint.textSize = mainTextSize
-        val percentText = "${displayPrimaryPercent.toInt()}%"
-
-        val textY = centerY - (textPaint.descent() + textPaint.ascent()) / 2f - (if (hasSecondaryRing) size * 0.04f else 0f)
-        canvas.drawText(percentText, centerX, textY, textPaint)
-
-        // 4. 绘制中心小字标签 "剩余"
-        val subTextSize = size * 0.085f
-        subTextPaint.textSize = subTextSize
-        val labelY = textY + subTextSize * 1.35f
-        canvas.drawText("剩余", centerX, labelY, subTextPaint)
+        // 最新版 agentRing 规范：移除圆环中心百分比大字，圆环仅作纯视觉仪表，百分比数值由下方明细行统一承载
     }
 
     override fun onDetachedFromWindow() {

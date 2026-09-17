@@ -7,23 +7,26 @@
     android:background="@color/bg_main"
     android:keepScreenOn="true"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:paddingStart="16dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
 
-    <!-- 顶部状态栏 -->
+    <!-- 顶部标题栏 (仿 macOS 标题与轻量状态) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingBottom="8dp">
+        android:paddingBottom="6dp">
 
         <TextView
             android:id="@+id/appTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/app_name"
+            android:text="Agent Ring - 剩余"
             android:textColor="@color/text_primary"
-            android:textSize="20sp"
+            android:textSize="17sp"
             android:textStyle="bold" />
 
         <View
@@ -37,21 +40,21 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_pill"
+            android:background="@drawable/bg_capsule"
             android:paddingStart="10dp"
             android:paddingTop="4dp"
             android:paddingEnd="10dp"
             android:paddingBottom="4dp"
             android:text="AgentRing-Phone"
             android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
         <!-- 蓝牙连接状态 Pill -->
         <LinearLayout
             android:id="@+id/connectionStatusLayout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_pill"
+            android:background="@drawable/bg_capsule"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="10dp"
@@ -61,8 +64,8 @@
 
             <View
                 android:id="@+id/connectionStatusDot"
-                android:layout_width="8dp"
-                android:layout_height="8dp"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
                 android:layout_marginEnd="6dp"
                 android:background="@drawable/bg_status_dot" />
 
@@ -72,11 +75,11 @@
                 android:layout_height="wrap_content"
                 android:text="@string/bt_waiting"
                 android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 中间主内容区域（支持自适应） -->
+    <!-- 中间主内容区域（支持自适应绘图，无卡片、不滚动、一屏展示所有） -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -91,9 +94,9 @@
             android:orientation="vertical">
 
             <ImageView
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:alpha="0.4"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:alpha="0.3"
                 android:src="@drawable/ic_launcher"
                 android:contentDescription="Empty" />
 
@@ -101,7 +104,7 @@
                 android:id="@+id/emptyHintText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="14dp"
                 android:gravity="center"
                 android:text="@string/no_data_hint"
                 android:textColor="@color/text_secondary"
@@ -110,9 +113,9 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:gravity="center"
-                android:text="在 Mac 蓝牙设置中配对并连接此设备"
+                android:text="在 Mac 蓝牙设置中连接此设备以开始展示"
                 android:textColor="@color/text_tertiary"
                 android:textSize="12sp" />
 
@@ -120,21 +123,22 @@
                 android:id="@+id/btnPairMac"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="12dp"
                 android:text="与附近电脑发起配对"
                 android:visibility="gone"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="#FFFFFF"
                 app:backgroundTint="@color/codex_primary"
-                app:cornerRadius="20dp" />
+                app:cornerRadius="16dp" />
         </LinearLayout>
 
-        <!-- 横向并列展示容器（无卡片、不滚动、一屏展示所有） -->
+        <!-- 横向并列展示容器（直接绘图分割、无卡片、不滚动、一屏展示所有、整体居中且各列上对齐） -->
         <LinearLayout
             android:id="@+id/columnsContainer"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="top|center_horizontal"
             android:orientation="horizontal"
             android:visibility="gone" />
     </FrameLayout>
@@ -145,7 +149,7 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="6dp">
+        android:paddingTop="4dp">
 
         <TextView
             android:id="@+id/lastUpdatedText"
@@ -153,7 +157,7 @@
             android:layout_height="wrap_content"
             android:text="等待同步…"
             android:textColor="@color/text_tertiary"
-            android:textSize="11sp" />
+            android:textSize="10sp" />
 
         <View
             android:layout_width="0dp"
@@ -164,9 +168,9 @@
             android:id="@+id/versionText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AgentRing Monitor v1.0"
+            android:text="AgentRing Monitor"
             android:textColor="@color/text_tertiary"
-            android:textSize="11sp" />
+            android:textSize="10sp" />
     </LinearLayout>
 
 </LinearLayout>

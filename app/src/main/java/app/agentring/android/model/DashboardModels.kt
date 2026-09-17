@@ -14,13 +14,14 @@ data class SyncPayload(
  * 单个 AI 助手提供商（Codex、Cursor、Antigravity 等）用量
  */
 data class ProviderData(
-    @SerializedName("id") val id: String, // "codex", "cursor", "antigravity"
+    @SerializedName("id") val id: String, // "codex", "cursor", "antigravity", "antigravity_third"
     @SerializedName("name") val name: String,
     @SerializedName("primary") val primary: LimitItem? = null,
     @SerializedName("secondary") val secondary: LimitItem? = null,
     @SerializedName("tertiary") val tertiary: LimitItem? = null,
     @SerializedName("extraInfo") val extraInfo: String? = null,
-    @SerializedName("statusMessage") val statusMessage: String? = null
+    @SerializedName("statusMessage") val statusMessage: String? = null,
+    @SerializedName("rows") val rows: List<LimitRowItem>? = null
 )
 
 /**
@@ -32,4 +33,13 @@ data class LimitItem(
     @SerializedName("remainingFraction") val remainingFraction: Double? = null,
     @SerializedName("resetsAt") val resetsAt: String? = null,
     @SerializedName("remainingDetails") val remainingDetails: String? = null
+)
+
+/**
+ * 胶囊行（与 macOS AgentRing 保持一致）
+ */
+data class LimitRowItem(
+    @SerializedName("label") val label: String,
+    @SerializedName("percent") val percent: String,
+    @SerializedName("reset") val reset: String? = null
 )

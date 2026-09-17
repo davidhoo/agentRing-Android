@@ -1,46 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:layout_weight="1"
-    android:gravity="center_horizontal|center_vertical"
+    android:gravity="top|center_horizontal"
     android:orientation="vertical"
-    android:paddingStart="8dp"
-    android:paddingTop="4dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="4dp">
+    android:paddingStart="6dp"
+    android:paddingTop="0dp"
+    android:paddingEnd="6dp"
+    android:paddingBottom="0dp">
 
-    <!-- 厂商标题与彩色指示 -->
-    <LinearLayout
+    <!-- 厂商标题 (居中展示，顶对齐) -->
+    <TextView
+        android:id="@+id/providerName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:text="Antigravity"
+        android:textColor="@color/column_title"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
-        <View
-            android:id="@+id/providerColorIndicator"
-            android:layout_width="4dp"
-            android:layout_height="14dp"
-            android:layout_marginEnd="6dp"
-            android:background="@color/codex_primary" />
-
-        <TextView
-            android:id="@+id/providerName"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Codex"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!-- 核心环形进度条（无卡片底色，直接融入深色背景） -->
+    <!-- 环形进度条区域 (各厂商保持一致高度和外边距) -->
     <FrameLayout
         android:id="@+id/ringContainer"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="4dp">
+        android:layout_height="116dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="10dp">
 
         <app.agentring.android.ui.ActivityRingView
             android:id="@+id/activityRingView"
@@ -49,72 +35,11 @@
             android:layout_gravity="center" />
     </FrameLayout>
 
-    <!-- 主窗口描述与剩余 -->
-    <TextView
-        android:id="@+id/primaryLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="主窗口剩余 85%"
-        android:textColor="@color/text_primary"
-        android:textSize="12sp"
-        android:textStyle="bold" />
-
-    <!-- 重置倒计时 -->
-    <TextView
-        android:id="@+id/resetCountdown"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:gravity="center"
-        android:text="重置倒计时: 2小时 15分"
-        android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
-
-    <!-- 次级窗口额度 Pill（如周级窗口或 API 模型池） -->
+    <!-- 动态胶囊药丸容器 (垂直排列，各列顶对齐) -->
     <LinearLayout
-        android:id="@+id/secondaryLayout"
-        android:layout_width="wrap_content"
+        android:id="@+id/rowsContainer"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:background="@drawable/bg_pill"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="3dp"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/secondaryLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="7天窗口 剩余"
-            android:textColor="@color/text_secondary"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/secondaryPercent"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="92%"
-            android:textColor="@color/text_primary"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!-- 额外额度信息（Credits / On-demand 剩余） -->
-    <TextView
-        android:id="@+id/extraInfo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:gravity="center"
-        android:text="Credits 余额: $25.00"
-        android:textColor="@color/text_tertiary"
-        android:textSize="10sp"
-        android:visibility="gone" />
+        android:orientation="vertical" />
 
 </LinearLayout>

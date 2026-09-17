@@ -1,24 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_main">#0D0F12</color>
-    <color name="bg_card">#16191F</color>
-    <color name="border_card">#272B35</color>
-    <color name="bg_pill">#1E222B</color>
+    <!-- macOS Light Window Style -->
+    <color name="bg_main">#F5F6F8</color>
+    <color name="bg_capsule">#ECEEF1</color>
+    <color name="bg_pill">#ECEEF1</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="border_card">#E2E5E9</color>
+    <color name="divider_line">#E2E5E9</color>
 
-    <color name="text_primary">#F3F4F6</color>
-    <color name="text_secondary">#9CA3AF</color>
-    <color name="text_tertiary">#6B7280</color>
+    <color name="column_title">#4B5563</color>
+    <color name="text_primary">#111827</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_tertiary">#9CA3AF</color>
 
-    <!-- Provider specific colors -->
-    <color name="codex_primary">#10A37F</color>
-    <color name="codex_secondary">#059669</color>
-    <color name="cursor_primary">#3B82F6</color>
-    <color name="cursor_secondary">#8B5CF6</color>
-    <color name="antigravity_primary">#F59E0B</color>
-    <color name="antigravity_secondary">#EC4899</color>
+    <color name="pill_label">#6B7280</color>
+    <color name="pill_value">#111827</color>
+    <color name="pill_reset">#6B7280</color>
 
-    <color name="ring_track">#232733</color>
+    <!-- Provider specific colors (Matching macOS ColorScheme.swift) -->
+    <!-- Codex: Green / Darkened Green -->
+    <color name="codex_primary">#718F66</color>
+    <color name="codex_secondary">#58744F</color>
+
+    <!-- Cursor: Rose / Darkened Rose -->
+    <color name="cursor_primary">#B76776</color>
+    <color name="cursor_secondary">#96515E</color>
+
+    <!-- Antigravity Gemini: Slate Blue / Darkened Blue -->
+    <color name="antigravity_primary">#617FA8</color>
+    <color name="antigravity_secondary">#4E6B93</color>
+
+    <!-- Antigravity Third (Claude/GPT): Terracotta / Darkened Terracotta -->
+    <color name="antigravity_third_primary">#A8785D</color>
+    <color name="antigravity_third_secondary">#8C5F44</color>
+
+    <!-- Ring Track: Soft light gray matching macOS background ring -->
+    <color name="ring_track">#EDF0F5</color>
+
+    <!-- Urgency state colors matching macOS HIG -->
+    <color name="urgency_normal">#111827</color>
+    <color name="urgency_warning">#EA580C</color>
+    <color name="urgency_critical">#DC2626</color>
+    <color name="row_divider">#ECEEF1</color>
+
+    <!-- Status dots -->
     <color name="status_green">#22C55E</color>
     <color name="status_yellow">#EAB308</color>
     <color name="status_red">#EF4444</color>
+    <color name="status_blue">#3B82F6</color>
 </resources>

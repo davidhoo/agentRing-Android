@@ -2,6 +2,8 @@
 
 专为闲置旧手机（最低兼容 **Android 5.0.2 / API 21**）打造的桌面 AI 用量副屏应用。与电脑上的 [agentRing](https://github.com/haorui-lab/agentRing) 菜单栏应用通过**经典蓝牙 (Bluetooth SPP)** 通讯，将手机作为常亮副屏摆件，实时显示 Codex、Cursor、Antigravity 的**剩余额度**。
 
+![AgentRing-Android 运行截图](docs/screenshots/live_display.png)
+
 ---
 
 ## 核心特性

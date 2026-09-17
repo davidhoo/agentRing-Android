@@ -7,12 +7,10 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -36,13 +34,13 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. 需求：启动后，开启横屏模式
+        // 1. 启动后，强制横屏模式
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
-        // 4. 需求：程序运行后，屏幕常亮
+        // 2. 屏幕常亮
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // 启用全屏沉浸体验
+        // 3. 全屏沉浸体验
         enableImmersiveMode()
 
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -111,7 +109,6 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     }
 
     private fun checkAndRequestPermissions() {
-        // Android 5.0.2 (API 21) 在安装时即授予权限；Android 12+ (API 31+) 需要动态申请蓝牙连接权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val needed = mutableListOf<String>()
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -136,12 +133,7 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1001) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                bluetoothManager?.start()
-            } else {
-                Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show()
-                bluetoothManager?.start()
-            }
+            bluetoothManager?.start()
         }
     }
 
@@ -153,16 +145,24 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
 
         when (state) {
             BluetoothServerManager.ConnectionState.CONNECTED -> {
-                binding.connectionStatusDot.setBackgroundResource(R.drawable.bg_status_dot)
+                setDotColor(R.color.status_green)
             }
             BluetoothServerManager.ConnectionState.LISTENING -> {
-                // 等待连接状态黄色或蓝色
-                binding.connectionStatusDot.setBackgroundColor(Color.parseColor("#3B82F6"))
+                setDotColor(R.color.status_blue)
             }
             BluetoothServerManager.ConnectionState.BLUETOOTH_OFF,
             BluetoothServerManager.ConnectionState.ERROR -> {
-                binding.connectionStatusDot.setBackgroundColor(Color.parseColor("#EF4444"))
+                setDotColor(R.color.status_red)
             }
+        }
+    }
+
+    private fun setDotColor(colorRes: Int) {
+        val drawable = binding.connectionStatusDot.background as? android.graphics.drawable.GradientDrawable
+        if (drawable != null) {
+            drawable.setColor(ContextCompat.getColor(this, colorRes))
+        } else {
+            binding.connectionStatusDot.setBackgroundColor(ContextCompat.getColor(this, colorRes))
         }
     }
 
@@ -202,7 +202,7 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
 
     /**
      * 需求：不要卡片模式，直接绘图分割，不需要交互，全部横向列在界面上，一屏展示所有信息。
-     * 根据项目多少决定环的大小。
+     * 根据项目多少决定环的大小，动态缩放以适应屏幕。
      */
     private fun renderDashboard(providers: List<ProviderData>) {
         cachedProviders = providers
@@ -210,30 +210,31 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
         container.removeAllViews()
 
         val count = providers.size
-        // 根据项目多少决定环的高度/尺寸：
-        // 1项 -> 大环 (~150dp)
-        // 2项 -> 中大环 (~130dp)
-        // 3项 -> 中环 (~110dp)
-        // 4项及以上 -> 紧凑环 (~92dp)
+        // 根据项目多少决定环高度：
+        // 1项 -> ~140dp
+        // 2项 -> ~120dp
+        // 3项 -> ~105dp
+        // 4项及以上 -> ~92dp
         val ringHeightDp = when (count) {
-            1 -> 150
-            2 -> 130
-            3 -> 110
+            1 -> 140
+            2 -> 120
+            3 -> 105
             else -> 92
         }
 
         for (i in providers.indices) {
             val provider = providers[i]
 
-            // 厂商列之间的直接细分割线（仿 macOS agentRing ProviderDivider）
+            // 厂商列之间的细垂直分割线（仿 macOS agentRing ProviderDivider）
             if (i > 0) {
                 val divider = View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(dpToPx(1), ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                        val marginV = dpToPx(14)
-                        topMargin = marginV
-                        bottomMargin = marginV
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(1), dpToPx(190)).apply {
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                        val marginH = dpToPx(4)
+                        leftMargin = marginH
+                        rightMargin = marginH
                     }
-                    setBackgroundColor(Color.parseColor("#26FFFFFF"))
+                    setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.divider_line))
                 }
                 container.addView(divider)
             }
@@ -251,99 +252,145 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
         ringHeightDp: Int
     ) {
         val lp = columnBinding.root.layoutParams as LinearLayout.LayoutParams
-        if (totalCount == 1) {
-            lp.width = dpToPx(380)
-            lp.weight = 0f
-        } else {
-            lp.width = 0
-            lp.weight = 1f
-        }
-        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+        lp.width = 0
+        lp.weight = 1f
+        lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+        lp.gravity = android.view.Gravity.TOP
         columnBinding.root.layoutParams = lp
 
         // 动态根据厂商数量设定环高度
         columnBinding.ringContainer.layoutParams.height = dpToPx(ringHeightDp)
 
-        // 厂商名称与指示色
+        // 厂商名称
         columnBinding.providerName.text = provider.name
-        val (primaryColor, secondaryColor) = getProviderColors(provider.id)
-        columnBinding.providerColorIndicator.setBackgroundColor(primaryColor)
 
-        // 剩余额度圆环数值与顺滑动画
         val primary = provider.primary
         val secondary = provider.secondary
-
         val primaryPercent = primary?.remainingPercent ?: 100.0
         val secondaryPercent = secondary?.remainingPercent
+        val hasSecondary = (secondaryPercent != null)
 
+        val (primaryColor, secondaryColor) = getProviderColors(provider.id, hasSecondary)
+
+        // 剩余额度圆环数值与顺滑动画
         columnBinding.activityRingView.setColors(primaryColor, secondaryColor)
         columnBinding.activityRingView.setValues(primaryPercent, secondaryPercent, animate = true)
 
-        // 主窗口描述与详情
-        val primaryDesc = primary?.label ?: "主窗口"
-        val primaryDetails = primary?.remainingDetails
-        if (!primaryDetails.isNullOrBlank()) {
-            columnBinding.primaryLabel.text = "$primaryDesc 剩余 $primaryDetails"
-        } else {
-            columnBinding.primaryLabel.text = "$primaryDesc 剩余 ${primaryPercent.toInt()}%"
-        }
+        // 明细行列表：完全由服务端下发的 rows 动态渲染（扁平列表、三列固定通道、行间极细分割线、额度告急分级变色）
+        columnBinding.rowsContainer.removeAllViews()
 
-        // 重置倒计时
-        val resetStr = primary?.resetsAt
-        if (!resetStr.isNullOrBlank()) {
-            columnBinding.resetCountdown.visibility = View.VISIBLE
-            columnBinding.resetCountdown.text = getString(R.string.resets_in, resetStr)
-        } else {
-            columnBinding.resetCountdown.visibility = View.GONE
-        }
+        val rows = provider.rows
+        if (!rows.isNullOrEmpty()) {
+            for (index in rows.indices) {
+                val rowItem = rows[index]
 
-        // 次级窗口（7天周级 / API 等）
-        if (secondary != null) {
-            columnBinding.secondaryLayout.visibility = View.VISIBLE
-            val secLabel = secondary.label ?: "周级窗口"
-            columnBinding.secondaryLabel.text = "$secLabel 剩余"
-            if (!secondary.remainingDetails.isNullOrBlank()) {
-                columnBinding.secondaryPercent.text = secondary.remainingDetails
-            } else {
-                columnBinding.secondaryPercent.text = "${secondaryPercent?.toInt() ?: 0}%"
+                // 行间 1dp 浅灰分割线（仿 macOS agentRing limitRows）
+                if (index > 0) {
+                    val divider = View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            dpToPx(1)
+                        ).apply {
+                            val marginH = dpToPx(4)
+                            leftMargin = marginH
+                            rightMargin = marginH
+                            topMargin = dpToPx(1)
+                            bottomMargin = dpToPx(1)
+                        }
+                        setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.row_divider))
+                    }
+                    columnBinding.rowsContainer.addView(divider)
+                }
+
+                val rowBinding = app.agentring.android.databinding.ItemLimitRowBinding.inflate(layoutInflater, columnBinding.rowsContainer, false)
+                rowBinding.rowLabel.text = rowItem.label
+                rowBinding.rowPercent.text = rowItem.percent
+
+                // 百分比额度告急分级变色（≤5% 红色紧急，≤20% 橙色警告，其余常规）
+                val urgencyColor = getUrgencyColor(rowItem.percent)
+                rowBinding.rowPercent.setTextColor(urgencyColor)
+
+                // 重置时间/额度（空时保持占位，确保数值通道垂直严格对齐不漂移）
+                val resetText = rowItem.reset
+                if (!resetText.isNullOrBlank()) {
+                    rowBinding.rowReset.visibility = View.VISIBLE
+                    rowBinding.rowReset.text = resetText
+                } else {
+                    rowBinding.rowReset.visibility = View.INVISIBLE
+                    rowBinding.rowReset.text = ""
+                }
+
+                // 自适应字号
+                when {
+                    totalCount >= 4 -> {
+                        rowBinding.rowLabel.textSize = 10f
+                        rowBinding.rowPercent.textSize = 10.5f
+                        rowBinding.rowReset.textSize = 10f
+                    }
+                    else -> {
+                        rowBinding.rowLabel.textSize = 11f
+                        rowBinding.rowPercent.textSize = 11.5f
+                        rowBinding.rowReset.textSize = 11f
+                    }
+                }
+                columnBinding.rowsContainer.addView(rowBinding.root)
             }
-        } else {
-            columnBinding.secondaryLayout.visibility = View.GONE
         }
 
-        // 额外信息（Credits 余额等）
-        if (!provider.extraInfo.isNullOrBlank()) {
-            columnBinding.extraInfo.visibility = View.VISIBLE
-            columnBinding.extraInfo.text = provider.extraInfo
-        } else {
-            columnBinding.extraInfo.visibility = View.GONE
-        }
-
-        // 紧凑排版微调：当>=3项时适当微调字体，确保单屏绝不截断
-        if (totalCount >= 3) {
-            columnBinding.providerName.textSize = 15f
-            columnBinding.primaryLabel.textSize = 11.5f
-            columnBinding.resetCountdown.textSize = 10f
+        // 厂商标题字号缩放
+        when {
+            totalCount >= 4 -> columnBinding.providerName.textSize = 13f
+            else -> columnBinding.providerName.textSize = 14f
         }
     }
 
-    private fun getProviderColors(id: String): Pair<Int, Int> {
+    /**
+     * 根据剩余百分比计算告急分级颜色（与 macOS UsageRingDisplay.UrgencyLevel 一致）
+     */
+    private fun getUrgencyColor(percentStr: String): Int {
+        val digits = percentStr.trim().removeSuffix("%").trim()
+        val percentVal = digits.toDoubleOrNull()
+        return if (percentVal != null) {
+            when {
+                percentVal <= 5.0 -> ContextCompat.getColor(this, R.color.urgency_critical)
+                percentVal <= 20.0 -> ContextCompat.getColor(this, R.color.urgency_warning)
+                else -> ContextCompat.getColor(this, R.color.urgency_normal)
+            }
+        } else {
+            ContextCompat.getColor(this, R.color.urgency_normal)
+        }
+    }
+
+    private fun getProviderColors(id: String, hasSecondary: Boolean): Pair<Int, Int> {
         return when (id.lowercase()) {
-            "codex" -> Pair(
-                Color.parseColor("#10A37F"),
-                Color.parseColor("#059669")
+            "codex" -> {
+                if (!hasSecondary) {
+                    Pair(
+                        ContextCompat.getColor(this, R.color.codex_secondary),
+                        ContextCompat.getColor(this, R.color.codex_secondary)
+                    )
+                } else {
+                    Pair(
+                        ContextCompat.getColor(this, R.color.codex_primary),
+                        ContextCompat.getColor(this, R.color.codex_secondary)
+                    )
+                }
+            }
+            "antigravity" -> Pair(
+                ContextCompat.getColor(this, R.color.antigravity_primary),
+                ContextCompat.getColor(this, R.color.antigravity_secondary)
+            )
+            "antigravity_third" -> Pair(
+                ContextCompat.getColor(this, R.color.antigravity_third_primary),
+                ContextCompat.getColor(this, R.color.antigravity_third_secondary)
             )
             "cursor" -> Pair(
-                Color.parseColor("#3B82F6"),
-                Color.parseColor("#8B5CF6")
-            )
-            "antigravity" -> Pair(
-                Color.parseColor("#F59E0B"),
-                Color.parseColor("#EC4899")
+                ContextCompat.getColor(this, R.color.cursor_primary),
+                ContextCompat.getColor(this, R.color.cursor_secondary)
             )
             else -> Pair(
-                Color.parseColor("#3B82F6"),
-                Color.parseColor("#10B981")
+                ContextCompat.getColor(this, R.color.antigravity_primary),
+                ContextCompat.getColor(this, R.color.antigravity_secondary)
             )
         }
     }
