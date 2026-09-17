@@ -326,10 +326,24 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
 
                 val rowBinding = app.agentring.android.databinding.ItemLimitRowBinding.inflate(layoutInflater, columnBinding.rowsContainer, false)
                 rowBinding.rowLabel.text = rowItem.label
-                rowBinding.rowPercent.text = rowItem.percent
+
+                // 核心：副屏是剩余监视器，严格展示「剩余量」！
+                // 行 0 对应外环 primary，行 1 对应内环 secondary
+                // 以 primary/secondary 的剩余量（remainingPercent）为绝对基准，确保大圆环与明细行数值 100% 同源对齐
+                val displayPercentText = when {
+                    index == 0 && primary?.remainingPercent != null && rowItem.percent.contains("%") -> {
+                        "${primary.remainingPercent.toInt()}%"
+                    }
+                    index == 1 && secondary?.remainingPercent != null && rowItem.percent.contains("%") -> {
+                        "${secondary.remainingPercent.toInt()}%"
+                    }
+                    else -> rowItem.percent
+                }
+
+                rowBinding.rowPercent.text = displayPercentText
 
                 // 百分比额度告急分级变色（≤5% 红色紧急，≤20% 橙色警告，其余常规）
-                val urgencyColor = getUrgencyColor(rowItem.percent)
+                val urgencyColor = getUrgencyColor(displayPercentText)
                 rowBinding.rowPercent.setTextColor(urgencyColor)
 
                 // 重置时间/额度（空时保持占位，确保数值通道垂直严格对齐不漂移）
