@@ -177,25 +177,36 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     }
 
     private var cachedProviders: List<ProviderData> = emptyList()
+    private val activeColumnBindings = mutableListOf<ItemProviderColumnBinding>()
 
     override fun onDataReceived(payload: SyncPayload) {
         val providers = payload.providers
         if (providers.isEmpty()) {
             binding.emptyStateLayout.visibility = View.VISIBLE
             binding.columnsContainer.visibility = View.GONE
+            cachedProviders = emptyList()
+            activeColumnBindings.clear()
             return
         }
 
         binding.emptyStateLayout.visibility = View.GONE
         binding.columnsContainer.visibility = View.VISIBLE
-        binding.lastUpdatedText.text = getString(R.string.last_updated, timeFormat.format(Date()))
 
+        // 状态判断：副屏作为展示设备，只有跟上次数据产生实质变化时，才更新界面与动效
+        if (cachedProviders.isNotEmpty() && providers == cachedProviders) {
+            // 数据未发生任何变化，无需重刷界面，不重跑动画，直接跳过
+            return
+        }
+
+        binding.lastUpdatedText.text = getString(R.string.last_updated, timeFormat.format(Date()))
         renderDashboard(providers)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (cachedProviders.isNotEmpty()) {
+            // 屏幕旋转时强制重新构建视图排版
+            activeColumnBindings.clear()
             renderDashboard(cachedProviders)
         }
     }
@@ -203,18 +214,12 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     /**
      * 需求：不要卡片模式，直接绘图分割，不需要交互，全部横向列在界面上，一屏展示所有信息。
      * 根据项目多少决定环的大小，动态缩放以适应屏幕。
+     * 支持列视图直接复用：避免全屏 removeAllViews 导致的重绘闪烁与圆环从 0 冲顶。
      */
     private fun renderDashboard(providers: List<ProviderData>) {
-        cachedProviders = providers
         val container = binding.columnsContainer
-        container.removeAllViews()
-
         val count = providers.size
-        // 根据项目多少决定环高度：
-        // 1项 -> ~140dp
-        // 2项 -> ~120dp
-        // 3项 -> ~105dp
-        // 4项及以上 -> ~92dp
+
         val ringHeightDp = when (count) {
             1 -> 140
             2 -> 120
@@ -222,27 +227,44 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
             else -> 92
         }
 
-        for (i in providers.indices) {
-            val provider = providers[i]
+        // 检查已有列结构是否可直接复用（列数量与厂商 ID 顺序一致）
+        val canReuseViews = activeColumnBindings.size == count &&
+            cachedProviders.map { it.id } == providers.map { it.id }
 
-            // 厂商列之间的细垂直分割线（仿 macOS agentRing ProviderDivider）
-            if (i > 0) {
-                val divider = View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(dpToPx(1), dpToPx(190)).apply {
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                        val marginH = dpToPx(4)
-                        leftMargin = marginH
-                        rightMargin = marginH
+        if (!canReuseViews) {
+            container.removeAllViews()
+            activeColumnBindings.clear()
+
+            for (i in providers.indices) {
+                val provider = providers[i]
+
+                // 厂商列之间的细垂直分割线（仿 macOS agentRing ProviderDivider）
+                if (i > 0) {
+                    val divider = View(this).apply {
+                        val marginH = if (count >= 4) dpToPx(2) else dpToPx(4)
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(1), dpToPx(190)).apply {
+                            gravity = android.view.Gravity.CENTER_VERTICAL
+                            leftMargin = marginH
+                            rightMargin = marginH
+                        }
+                        setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.divider_line))
                     }
-                    setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.divider_line))
+                    container.addView(divider)
                 }
-                container.addView(divider)
-            }
 
-            val columnBinding = ItemProviderColumnBinding.inflate(layoutInflater, container, false)
-            bindProviderColumn(columnBinding, provider, count, ringHeightDp)
-            container.addView(columnBinding.root)
+                val columnBinding = ItemProviderColumnBinding.inflate(layoutInflater, container, false)
+                activeColumnBindings.add(columnBinding)
+                bindProviderColumn(columnBinding, provider, count, ringHeightDp)
+                container.addView(columnBinding.root)
+            }
+        } else {
+            // 列视图结构未变，原地增量更新数值与动画，圆环平滑从当前角度弹簧过渡到新角度
+            for (i in providers.indices) {
+                bindProviderColumn(activeColumnBindings[i], providers[i], count, ringHeightDp)
+            }
         }
+
+        cachedProviders = providers
     }
 
     private fun bindProviderColumn(
@@ -323,9 +345,9 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
                 // 自适应字号
                 when {
                     totalCount >= 4 -> {
-                        rowBinding.rowLabel.textSize = 10f
-                        rowBinding.rowPercent.textSize = 10.5f
-                        rowBinding.rowReset.textSize = 10f
+                        rowBinding.rowLabel.textSize = 9.5f
+                        rowBinding.rowPercent.textSize = 10f
+                        rowBinding.rowReset.textSize = 9.5f
                     }
                     else -> {
                         rowBinding.rowLabel.textSize = 11f

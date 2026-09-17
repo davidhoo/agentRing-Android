@@ -77,30 +77,53 @@ class ActivityRingView @JvmOverloads constructor(
             return
         }
 
-        primaryAnimator?.cancel()
-        primaryAnimator = ValueAnimator.ofFloat(displayPrimaryPercent, newPrimary).apply {
-            duration = 600
-            interpolator = DecelerateInterpolator()
-            addUpdateListener {
-                displayPrimaryPercent = it.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
-        targetPrimaryPercent = newPrimary
-
-        if (newSecondary != null) {
-            secondaryAnimator?.cancel()
-            secondaryAnimator = ValueAnimator.ofFloat(displaySecondaryPercent, newSecondary).apply {
-                duration = 600
-                interpolator = DecelerateInterpolator()
+        // 仅在目标值发生实质变化时触发动画，避免重复刷新导致的频繁闪烁
+        if (Math.abs(newPrimary - targetPrimaryPercent) > 0.05f || displayPrimaryPercent == 0f) {
+            primaryAnimator?.cancel()
+            primaryAnimator = ValueAnimator.ofFloat(displayPrimaryPercent, newPrimary).apply {
+                duration = 500
+                interpolator = AppleSpringInterpolator()
                 addUpdateListener {
-                    displaySecondaryPercent = it.animatedValue as Float
+                    displayPrimaryPercent = it.animatedValue as Float
                     invalidate()
                 }
                 start()
             }
-            targetSecondaryPercent = newSecondary
+            targetPrimaryPercent = newPrimary
+        }
+
+        if (newSecondary != null) {
+            if (Math.abs(newSecondary - targetSecondaryPercent) > 0.05f || displaySecondaryPercent == 0f) {
+                secondaryAnimator?.cancel()
+                secondaryAnimator = ValueAnimator.ofFloat(displaySecondaryPercent, newSecondary).apply {
+                    duration = 500
+                    interpolator = AppleSpringInterpolator()
+                    addUpdateListener {
+                        displaySecondaryPercent = it.animatedValue as Float
+                        invalidate()
+                    }
+                    start()
+                }
+                targetSecondaryPercent = newSecondary
+            }
+        }
+    }
+
+    /**
+     * 仿 macOS / Apple Watch 物理弹簧插值器
+     * 与 SwiftUI .spring(response: 0.42, dampingFraction: 0.78) 动力学特性严格一致：
+     * 起始平滑发力，自然阻尼收敛，带有 ~2% 极轻微回弹质感。
+     */
+    private class AppleSpringInterpolator : android.view.animation.Interpolator {
+        override fun getInterpolation(input: Float): Float {
+            if (input <= 0f) return 0f
+            if (input >= 1f) return 1f
+            val t = input.toDouble() * 0.46
+            val omegaD = 9.36
+            val decay = 11.67
+            val env = Math.exp(-decay * t)
+            val v = 1.0 - env * (Math.cos(omegaD * t) + (decay / omegaD) * Math.sin(omegaD * t))
+            return v.toFloat()
         }
     }
 

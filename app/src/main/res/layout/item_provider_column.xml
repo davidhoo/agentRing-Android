@@ -5,9 +5,9 @@
     android:layout_weight="1"
     android:gravity="top|center_horizontal"
     android:orientation="vertical"
-    android:paddingStart="6dp"
+    android:paddingStart="2dp"
     android:paddingTop="0dp"
-    android:paddingEnd="6dp"
+    android:paddingEnd="2dp"
     android:paddingBottom="0dp">
 
     <!-- 厂商标题 (居中展示，顶对齐) -->

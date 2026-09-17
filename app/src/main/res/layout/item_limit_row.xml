@@ -4,9 +4,9 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="4dp"
+    android:paddingStart="2dp"
     android:paddingTop="3dp"
-    android:paddingEnd="4dp"
+    android:paddingEnd="2dp"
     android:paddingBottom="3dp">
 
     <!-- 1. 额度名称：弹性宽度，左对齐，超长截断 -->
@@ -20,32 +20,32 @@
         android:maxLines="1"
         android:text="7天"
         android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
+        android:textSize="10.5sp" />
 
     <!-- 2. 百分比/数值：固定通道右对齐，加粗，支持告急分级着色 -->
     <TextView
         android:id="@+id/rowPercent"
-        android:layout_width="38dp"
+        android:layout_width="34dp"
         android:layout_height="wrap_content"
         android:gravity="end|center_vertical"
         android:maxLines="1"
         android:text="84%"
         android:textAlignment="viewEnd"
         android:textColor="@color/urgency_normal"
-        android:textSize="11.5sp"
+        android:textSize="11sp"
         android:textStyle="bold" />
 
     <!-- 3. 重置时间/剩余量：固定通道右对齐，副文本色 -->
     <TextView
         android:id="@+id/rowReset"
-        android:layout_width="54dp"
+        android:layout_width="48dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
+        android:layout_marginStart="2dp"
         android:gravity="end|center_vertical"
         android:maxLines="1"
         android:text="4d 14h"
         android:textAlignment="viewEnd"
         android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
+        android:textSize="10.5sp" />
 
 </LinearLayout>
