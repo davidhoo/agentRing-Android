@@ -68,6 +68,34 @@ class BluetoothServerManager(
     private var connectedSocket: BluetoothSocket? = null
     private var leAdvertiser: BluetoothLeAdvertiser? = null
 
+    private var lastDataReceivedTime: Long = 0
+    private var aclReceiverRegistered = false
+
+    private val aclReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothDevice.ACTION_ACL_DISCONNECTED) {
+                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+                Log.i(TAG, "ACL disconnected: ${device?.name} [${device?.address}]")
+                disconnectConnectedSocket("蓝牙链路已断开，等待重新连接…")
+            }
+        }
+    }
+
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            if (isRunning && connectedSocket != null) {
+                val now = System.currentTimeMillis()
+                if (lastDataReceivedTime > 0 && now - lastDataReceivedTime > 60_000) {
+                    Log.w(TAG, "Connection watchdog: no data for 60s, releasing stale socket")
+                    disconnectConnectedSocket("连接超时无响应，等待重新连接…")
+                }
+            }
+            if (isRunning) {
+                mainHandler.postDelayed(this, 15_000)
+            }
+        }
+    }
+
     var deviceBluetoothName: String = "AgentRing"
         private set
 
@@ -89,6 +117,14 @@ class BluetoothServerManager(
         makeDiscoverable()
         startBleAdvertising()
 
+        if (!aclReceiverRegistered) {
+            val filter = IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            context.registerReceiver(aclReceiver, filter)
+            aclReceiverRegistered = true
+        }
+        mainHandler.removeCallbacks(watchdogRunnable)
+        mainHandler.postDelayed(watchdogRunnable, 15_000)
+
         isRunning = true
         startListening()
     }
@@ -105,7 +141,6 @@ class BluetoothServerManager(
 
             deviceBluetoothName = desiredName
             adapter.name = desiredName
-            Settings.Secure.putString(context.contentResolver, "bluetooth_name", desiredName)
             Log.i(TAG, "Bluetooth name set to: $desiredName")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to set bluetooth name", e)
@@ -240,8 +275,22 @@ class BluetoothServerManager(
         }, "BT-AcceptThread").apply { start() }
     }
 
+    private fun disconnectConnectedSocket(reason: String = "连接已断开，等待重新连接…") {
+        val s = connectedSocket
+        connectedSocket = null
+        closeQuietly(s)
+        readThread?.interrupt()
+        readThread = null
+        if (isRunning) {
+            mainHandler.post {
+                listener.onStateChanged(ConnectionState.LISTENING, reason)
+            }
+        }
+    }
+
     private fun manageConnectedSocket(socket: BluetoothSocket) {
         connectedSocket = socket
+        lastDataReceivedTime = System.currentTimeMillis()
         val deviceName = try {
             socket.remoteDevice?.name ?: socket.remoteDevice?.address ?: "Mac"
         } catch (e: Exception) {
@@ -259,6 +308,8 @@ class BluetoothServerManager(
                 while (isRunning && socket.isConnected) {
                     val line = reader.readLine() ?: break
                     if (line.isBlank()) continue
+
+                    lastDataReceivedTime = System.currentTimeMillis()
 
                     try {
                         val payload = gson.fromJson(line, SyncPayload::class.java)
@@ -289,6 +340,14 @@ class BluetoothServerManager(
 
     fun stop() {
         isRunning = false
+        if (aclReceiverRegistered) {
+            try {
+                context.unregisterReceiver(aclReceiver)
+            } catch (_: Exception) {}
+            aclReceiverRegistered = false
+        }
+        mainHandler.removeCallbacks(watchdogRunnable)
+
         closeQuietly(serverSocket)
         serverSocket = null
         closeQuietly(connectedSocket)

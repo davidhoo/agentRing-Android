@@ -115,7 +115,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:gravity="center"
-                android:text="在 Mac 蓝牙设置中连接此设备以开始展示"
+                android:text="请确保 Mac 端 AgentRing 处于运行状态，将自动同步"
                 android:textColor="@color/text_tertiary"
                 android:textSize="12sp" />
 
