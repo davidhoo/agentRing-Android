@@ -332,10 +332,10 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
                 // 以 primary/secondary 的剩余量（remainingPercent）为绝对基准，确保大圆环与明细行数值 100% 同源对齐
                 val displayPercentText = when {
                     index == 0 && primary?.remainingPercent != null && rowItem.percent.contains("%") -> {
-                        "${primary.remainingPercent.toInt()}%"
+                        formatRemainingPercent(primary.remainingPercent)
                     }
                     index == 1 && secondary?.remainingPercent != null && rowItem.percent.contains("%") -> {
-                        "${secondary.remainingPercent.toInt()}%"
+                        formatRemainingPercent(secondary.remainingPercent)
                     }
                     else -> rowItem.percent
                 }
@@ -378,6 +378,25 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
             totalCount >= 4 -> columnBinding.providerName.textSize = 13f
             else -> columnBinding.providerName.textSize = 14f
         }
+    }
+
+    /**
+     * 按照业界标准格式化剩余百分比：四舍五入 + 边界保护
+     * - value <= 0.0 -> 0%（彻底耗尽）
+     * - 0.0 < value < 1.0 -> 1%（非零保底：只要还有微量额度，绝不提前报 0% 引起恐慌）
+     * - 99.0 < value < 100.0 -> 99%（未满封顶：只要产生消耗，绝不虚假冒充 100% 造成未扣费误解）
+     * - value >= 100.0 -> 100%
+     * - 其余区间正常四舍五入
+     */
+    private fun formatRemainingPercent(value: Double): String {
+        val rounded = when {
+            value <= 0.0 -> 0
+            value < 1.0 -> 1
+            value in 99.0..<100.0 -> 99
+            value >= 100.0 -> 100
+            else -> kotlin.math.round(value).toInt()
+        }
+        return "$rounded%"
     }
 
     /**
