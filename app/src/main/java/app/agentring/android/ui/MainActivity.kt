@@ -381,19 +381,19 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
     }
 
     /**
-     * 按照业界标准格式化剩余百分比：四舍五入 + 边界保护
-     * - value <= 0.0 -> 0%（彻底耗尽）
-     * - 0.0 < value < 1.0 -> 1%（非零保底：只要还有微量额度，绝不提前报 0% 引起恐慌）
-     * - 99.0 < value < 100.0 -> 99%（未满封顶：只要产生消耗，绝不虚假冒充 100% 造成未扣费误解）
-     * - value >= 100.0 -> 100%
+     * 按照业界标准格式化剩余百分比：四舍五入 + 边界保护（有效阈值 0.2%）
+     * - value < 0.2 -> 0%（极小量/浮点噪声视作彻底耗尽，与圆环 0.002 阈值同步）
+     * - 0.2 <= value < 1.0 -> 1%（实质微量额度非零保底）
+     * - 99.0 < value <= 99.8 -> 99%（实质微量消耗未满封顶）
+     * - value > 99.8 -> 100%（极小消耗视作满额）
      * - 其余区间正常四舍五入
      */
     private fun formatRemainingPercent(value: Double): String {
         val rounded = when {
-            value <= 0.0 -> 0
+            value < 0.2 -> 0
             value < 1.0 -> 1
-            value in 99.0..<100.0 -> 99
-            value >= 100.0 -> 100
+            value in 99.0..99.8 -> 99
+            value > 99.8 -> 100
             else -> kotlin.math.round(value).toInt()
         }
         return "$rounded%"
