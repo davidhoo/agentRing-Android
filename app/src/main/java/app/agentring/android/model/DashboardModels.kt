@@ -6,6 +6,7 @@ import com.google.gson.annotations.SerializedName
  * 完整同步数据包
  */
 data class SyncPayload(
+    @SerializedName("type") val type: String? = null,
     @SerializedName("timestamp") val timestamp: Long = System.currentTimeMillis(),
     @SerializedName("providers") val providers: List<ProviderData> = emptyList()
 )

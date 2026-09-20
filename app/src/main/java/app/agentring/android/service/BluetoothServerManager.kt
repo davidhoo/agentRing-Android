@@ -67,6 +67,9 @@ class BluetoothServerManager(
     private var serverSocket: BluetoothServerSocket? = null
     private var connectedSocket: BluetoothSocket? = null
     private var leAdvertiser: BluetoothLeAdvertiser? = null
+    private var activeAdvertiseCallback: AdvertiseCallback? = null
+    @Volatile
+    private var isBleAdvertising = false
 
     private var lastDataReceivedTime: Long = 0
     private var aclReceiverRegistered = false
@@ -98,18 +101,34 @@ class BluetoothServerManager(
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
-                // 1. 确保监听线程存活，若因极端异常终止则自动重启
+                // 1. 已连接状态：检测应用层心跳看门狗（半开连接 / Zombie Socket 防御）
+                if (connectedSocket != null) {
+                    val now = System.currentTimeMillis()
+                    // 超过 60 秒未收到任何报文或心跳，判定远端异常断开
+                    if (now - lastDataReceivedTime > 60_000L) {
+                        Log.w(TAG, "No data/heartbeat for ${now - lastDataReceivedTime}ms, disconnecting zombie socket")
+                        disconnectConnectedSocket("连接超时（60s 无心跳），等待重新连接…")
+                        makeDiscoverable()
+                        startBleAdvertising()
+                    }
+                }
+
+                // 2. 确保监听线程存活，若因极端异常终止则自动重启
                 if (acceptThread == null || !acceptThread!!.isAlive) {
                     Log.w(TAG, "AcceptThread is dead while isRunning, recovering...")
                     startListening()
                 }
 
-                // 2. 周期性（每 2 分钟）刷新可发现模式与 BLE 广播，防止底层蓝牙芯片在闲置时休眠关闭 Page Scan
-                periodicMaintenanceCounter++
-                if (periodicMaintenanceCounter >= 8) { // 8 * 15s = 120s
+                // 3. 仅在未连接状态下周期性（每 2 分钟）刷新可发现模式与 BLE 广播，避免已连接时挤占射频带宽
+                if (connectedSocket == null) {
+                    periodicMaintenanceCounter++
+                    if (periodicMaintenanceCounter >= 8) { // 8 * 15s = 120s
+                        periodicMaintenanceCounter = 0
+                        makeDiscoverable()
+                        startBleAdvertising()
+                    }
+                } else {
                     periodicMaintenanceCounter = 0
-                    makeDiscoverable()
-                    startBleAdvertising()
                 }
 
                 mainHandler.postDelayed(this, 15_000)
@@ -192,13 +211,25 @@ class BluetoothServerManager(
 
     /**
      * 开启 BLE 广播，让 macOS 蓝牙面板在附近设备中瞬间扫描到
+     * 仅在未连接状态下广播；连接后应及时停止，避免占用蓝牙基带射频时间片与泄漏广播实例
      */
+    @Synchronized
     private fun startBleAdvertising() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
         val adapter = bluetoothAdapter ?: return
+        if (!adapter.isEnabled) return
+
+        // 已有经典蓝牙连接时，不进行 BLE 广播，节省射频资源
+        if (connectedSocket != null) {
+            stopBleAdvertising()
+            return
+        }
 
         try {
             if (adapter.isMultipleAdvertisementSupported) {
+                // 启动新广播前务必停止旧的，防止 ADVERTISE_FAILED_TOO_MANY_ADVERTISERS (code 2) 实例泄漏
+                stopBleAdvertising()
+
                 leAdvertiser = adapter.bluetoothLeAdvertiser
                 val settings = AdvertiseSettings.Builder()
                     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -210,20 +241,37 @@ class BluetoothServerManager(
                     .setIncludeDeviceName(true)
                     .build()
 
-                leAdvertiser?.startAdvertising(settings, data, object : AdvertiseCallback() {
+                val callback = object : AdvertiseCallback() {
                     override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                         Log.i(TAG, "BLE advertising started successfully as $deviceBluetoothName")
+                        isBleAdvertising = true
                     }
 
                     override fun onStartFailure(errorCode: Int) {
                         Log.w(TAG, "BLE advertising failed with code $errorCode")
+                        isBleAdvertising = false
                     }
-                })
+                }
+                activeAdvertiseCallback = callback
+                leAdvertiser?.startAdvertising(settings, data, callback)
             } else {
                 Log.d(TAG, "Multiple advertisement not supported on this chipset")
             }
         } catch (e: Exception) {
             Log.w(TAG, "BLE advertise exception", e)
+        }
+    }
+
+    @Synchronized
+    private fun stopBleAdvertising() {
+        val callback = activeAdvertiseCallback ?: return
+        activeAdvertiseCallback = null
+        isBleAdvertising = false
+        try {
+            leAdvertiser?.stopAdvertising(callback)
+            Log.d(TAG, "BLE advertising stopped")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to stop BLE advertising", e)
         }
     }
 
@@ -347,6 +395,8 @@ class BluetoothServerManager(
     private fun manageConnectedSocket(socket: BluetoothSocket) {
         connectedSocket = socket
         lastDataReceivedTime = System.currentTimeMillis()
+        stopBleAdvertising() // 连接成功后立即停用 BLE 广播，为经典蓝牙腾出无线带宽与芯片资源
+
         val deviceName = try {
             socket.remoteDevice?.name ?: socket.remoteDevice?.address ?: "Mac"
         } catch (e: Exception) {
@@ -370,8 +420,11 @@ class BluetoothServerManager(
                     try {
                         val payload = gson.fromJson(line, SyncPayload::class.java)
                         if (payload != null) {
-                            mainHandler.post {
-                                listener.onDataReceived(payload)
+                            // 若为心跳帧 ("ping")，仅刷新 lastDataReceivedTime 保活，不触发不必要的界面重新渲染
+                            if (payload.type != "ping") {
+                                mainHandler.post {
+                                    listener.onDataReceived(payload)
+                                }
                             }
                         }
                     } catch (pe: Exception) {
@@ -389,6 +442,8 @@ class BluetoothServerManager(
                     mainHandler.post {
                         listener.onStateChanged(ConnectionState.LISTENING, "连接已断开，等待重新连接…")
                     }
+                    makeDiscoverable()
+                    startBleAdvertising()
                 }
             }
         }, "BT-ReadThread").apply { start() }
@@ -396,6 +451,7 @@ class BluetoothServerManager(
 
     fun stop() {
         isRunning = false
+        stopBleAdvertising()
         if (aclReceiverRegistered) {
             try {
                 context.unregisterReceiver(aclReceiver)
