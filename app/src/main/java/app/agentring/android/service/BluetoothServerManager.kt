@@ -73,24 +73,45 @@ class BluetoothServerManager(
 
     private val aclReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == BluetoothDevice.ACTION_ACL_DISCONNECTED) {
-                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-                Log.i(TAG, "ACL disconnected: ${device?.name} [${device?.address}]")
-                disconnectConnectedSocket("蓝牙链路已断开，等待重新连接…")
+            when (intent?.action) {
+                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+                    Log.i(TAG, "ACL disconnected: ${device?.name} [${device?.address}]")
+                    disconnectConnectedSocket("蓝牙链路已断开，等待重新连接…")
+                    makeDiscoverable()
+                    startBleAdvertising()
+                }
+                BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                    if (state == BluetoothAdapter.STATE_ON) {
+                        Log.i(TAG, "Bluetooth turned ON, restarting listening and advertising")
+                        makeDiscoverable()
+                        startBleAdvertising()
+                        startListening()
+                    }
+                }
             }
         }
     }
 
+    private var periodicMaintenanceCounter = 0
     private val watchdogRunnable = object : Runnable {
         override fun run() {
-            if (isRunning && connectedSocket != null) {
-                val now = System.currentTimeMillis()
-                if (lastDataReceivedTime > 0 && now - lastDataReceivedTime > 60_000) {
-                    Log.w(TAG, "Connection watchdog: no data for 60s, releasing stale socket")
-                    disconnectConnectedSocket("连接超时无响应，等待重新连接…")
-                }
-            }
             if (isRunning) {
+                // 1. 确保监听线程存活，若因极端异常终止则自动重启
+                if (acceptThread == null || !acceptThread!!.isAlive) {
+                    Log.w(TAG, "AcceptThread is dead while isRunning, recovering...")
+                    startListening()
+                }
+
+                // 2. 周期性（每 2 分钟）刷新可发现模式与 BLE 广播，防止底层蓝牙芯片在闲置时休眠关闭 Page Scan
+                periodicMaintenanceCounter++
+                if (periodicMaintenanceCounter >= 8) { // 8 * 15s = 120s
+                    periodicMaintenanceCounter = 0
+                    makeDiscoverable()
+                    startBleAdvertising()
+                }
+
                 mainHandler.postDelayed(this, 15_000)
             }
         }
@@ -118,7 +139,10 @@ class BluetoothServerManager(
         startBleAdvertising()
 
         if (!aclReceiverRegistered) {
-            val filter = IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            }
             context.registerReceiver(aclReceiver, filter)
             aclReceiverRegistered = true
         }
@@ -235,43 +259,75 @@ class BluetoothServerManager(
         serverSocket = null
 
         acceptThread = Thread({
-            try {
-                val adapter = bluetoothAdapter ?: return@Thread
+            Log.i(TAG, "BT-AcceptThread started")
+            while (isRunning) {
+                val adapter = bluetoothAdapter ?: break
                 if (!adapter.isEnabled) {
                     mainHandler.post {
                         listener.onStateChanged(ConnectionState.BLUETOOTH_OFF, "蓝牙未开启")
                     }
-                    return@Thread
-                }
-
-                val server = try {
-                    adapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SPP_UUID)
-                } catch (e: Exception) {
-                    adapter.listenUsingInsecureRfcommWithServiceRecord(SERVICE_NAME, SPP_UUID)
-                }
-                serverSocket = server
-
-                mainHandler.post {
-                    listener.onStateChanged(ConnectionState.LISTENING, "等待连接… ($deviceBluetoothName)")
-                }
-
-                while (isRunning) {
-                    val socket = try {
-                        server.accept()
-                    } catch (e: IOException) {
+                    try {
+                        Thread.sleep(2000)
+                    } catch (_: InterruptedException) {
                         break
-                    } ?: break
+                    }
+                    continue
+                }
 
+                var server = serverSocket
+                if (server == null) {
+                    try {
+                        server = try {
+                            adapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SPP_UUID)
+                        } catch (e: Exception) {
+                            adapter.listenUsingInsecureRfcommWithServiceRecord(SERVICE_NAME, SPP_UUID)
+                        }
+                        serverSocket = server
+                        mainHandler.post {
+                            listener.onStateChanged(ConnectionState.LISTENING, "等待连接… ($deviceBluetoothName)")
+                        }
+                        Log.i(TAG, "Server socket created successfully on $SERVICE_NAME")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to create server socket: ${e.message}, retrying in 3s")
+                        try {
+                            Thread.sleep(3000)
+                        } catch (_: InterruptedException) {
+                            break
+                        }
+                        continue
+                    }
+                }
+
+                try {
+                    val socket = server?.accept() ?: continue
                     Log.i(TAG, "Accepted incoming RFCOMM connection from: ${socket.remoteDevice?.name}")
                     closeQuietly(connectedSocket)
                     manageConnectedSocket(socket)
-                }
-            } catch (e: Exception) {
-                if (isRunning) {
-                    Log.w(TAG, "Listen thread exception: ${e.message}")
-                    mainHandler.postDelayed({ startListening() }, 3000)
+                } catch (e: IOException) {
+                    if (isRunning) {
+                        Log.w(TAG, "server.accept() IOException: ${e.message}. Recreating server socket in 1s...")
+                        closeQuietly(serverSocket)
+                        serverSocket = null
+                        try {
+                            Thread.sleep(1000)
+                        } catch (_: InterruptedException) {
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (isRunning) {
+                        Log.e(TAG, "Unexpected error in accept loop: ${e.message}", e)
+                        closeQuietly(serverSocket)
+                        serverSocket = null
+                        try {
+                            Thread.sleep(2000)
+                        } catch (_: InterruptedException) {
+                            break
+                        }
+                    }
                 }
             }
+            Log.i(TAG, "BT-AcceptThread finished")
         }, "BT-AcceptThread").apply { start() }
     }
 
