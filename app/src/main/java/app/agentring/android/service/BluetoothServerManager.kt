@@ -73,6 +73,12 @@ class BluetoothServerManager(
 
     private var lastDataReceivedTime: Long = 0
     private var aclReceiverRegistered = false
+    private var bleConsecutiveFailures = 0
+    private var acceptFailureCount = 0
+    private var lastStackRestartTime: Long = 0
+
+    val isConnected: Boolean
+        get() = connectedSocket?.isConnected == true
 
     private val aclReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -88,6 +94,8 @@ class BluetoothServerManager(
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                     if (state == BluetoothAdapter.STATE_ON) {
                         Log.i(TAG, "Bluetooth turned ON, restarting listening and advertising")
+                        bleConsecutiveFailures = 0
+                        acceptFailureCount = 0
                         makeDiscoverable()
                         startBleAdvertising()
                         startListening()
@@ -97,7 +105,6 @@ class BluetoothServerManager(
         }
     }
 
-    private var periodicMaintenanceCounter = 0
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
@@ -119,16 +126,11 @@ class BluetoothServerManager(
                     startListening()
                 }
 
-                // 3. 仅在未连接状态下周期性（每 2 分钟）刷新可发现模式与 BLE 广播，避免已连接时挤占射频带宽
+                // 3. 未连接状态健康检查：若广播未激活且未达错误上限，轻量补充启动；严禁每 2 分钟暴力循环启停以防打崩 Bluedroid 协议栈
                 if (connectedSocket == null) {
-                    periodicMaintenanceCounter++
-                    if (periodicMaintenanceCounter >= 8) { // 8 * 15s = 120s
-                        periodicMaintenanceCounter = 0
-                        makeDiscoverable()
+                    if (!isBleAdvertising && bleConsecutiveFailures < 3) {
                         startBleAdvertising()
                     }
-                } else {
-                    periodicMaintenanceCounter = 0
                 }
 
                 mainHandler.postDelayed(this, 15_000)
@@ -225,9 +227,19 @@ class BluetoothServerManager(
             return
         }
 
+        // 已在广播中且回调活跃，直接复用，切勿重复申请 clientIf 导致底层资源泄漏
+        if (isBleAdvertising && activeAdvertiseCallback != null) {
+            return
+        }
+
+        // 连续失败保护：若底层多次报错（如 code 4 内部错误），熔断退避，防止打崩系统蓝牙进程
+        if (bleConsecutiveFailures >= 3) {
+            Log.w(TAG, "BLE advertising paused: reached failure threshold ($bleConsecutiveFailures)")
+            return
+        }
+
         try {
             if (adapter.isMultipleAdvertisementSupported) {
-                // 启动新广播前务必停止旧的，防止 ADVERTISE_FAILED_TOO_MANY_ADVERTISERS (code 2) 实例泄漏
                 stopBleAdvertising()
 
                 leAdvertiser = adapter.bluetoothLeAdvertiser
@@ -245,11 +257,17 @@ class BluetoothServerManager(
                     override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                         Log.i(TAG, "BLE advertising started successfully as $deviceBluetoothName")
                         isBleAdvertising = true
+                        bleConsecutiveFailures = 0
                     }
 
                     override fun onStartFailure(errorCode: Int) {
                         Log.w(TAG, "BLE advertising failed with code $errorCode")
                         isBleAdvertising = false
+                        activeAdvertiseCallback = null
+                        bleConsecutiveFailures++
+                        if (bleConsecutiveFailures >= 3) {
+                            Log.e(TAG, "BLE advertising failed $bleConsecutiveFailures times, pausing to prevent stack corruption")
+                        }
                     }
                 }
                 activeAdvertiseCallback = callback
@@ -259,19 +277,62 @@ class BluetoothServerManager(
             }
         } catch (e: Exception) {
             Log.w(TAG, "BLE advertise exception", e)
+            bleConsecutiveFailures++
         }
     }
 
     @Synchronized
     private fun stopBleAdvertising() {
-        val callback = activeAdvertiseCallback ?: return
+        val callback = activeAdvertiseCallback
         activeAdvertiseCallback = null
         isBleAdvertising = false
+        if (callback != null) {
+            try {
+                leAdvertiser?.stopAdvertising(callback)
+                Log.d(TAG, "BLE advertising stopped")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to stop BLE advertising", e)
+            }
+        }
+    }
+
+    /**
+     * 软重启手机蓝牙协议栈（自动自愈或用户手动点击触发）
+     */
+    fun restartBluetoothStack(reason: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastStackRestartTime < 30_000L) {
+            Log.w(TAG, "Ignoring restartBluetoothStack ($reason): throttled")
+            return
+        }
+        lastStackRestartTime = now
+        Log.w(TAG, "Restarting Bluetooth Adapter: $reason")
+        val adapter = bluetoothAdapter ?: return
         try {
-            leAdvertiser?.stopAdvertising(callback)
-            Log.d(TAG, "BLE advertising stopped")
+            stopBleAdvertising()
+            closeQuietly(connectedSocket)
+            connectedSocket = null
+            closeQuietly(serverSocket)
+            serverSocket = null
+            bleConsecutiveFailures = 0
+            acceptFailureCount = 0
+
+            mainHandler.post {
+                listener.onStateChanged(ConnectionState.BLUETOOTH_OFF, "正在重置蓝牙服务…")
+            }
+
+            if (adapter.isEnabled) {
+                adapter.disable()
+            }
+            mainHandler.postDelayed({
+                try {
+                    adapter.enable()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to re-enable Bluetooth adapter", e)
+                }
+            }, 2000)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to stop BLE advertising", e)
+            Log.e(TAG, "Exception during restartBluetoothStack", e)
         }
     }
 
@@ -349,13 +410,19 @@ class BluetoothServerManager(
                 try {
                     val socket = server?.accept() ?: continue
                     Log.i(TAG, "Accepted incoming RFCOMM connection from: ${socket.remoteDevice?.name}")
+                    acceptFailureCount = 0
                     closeQuietly(connectedSocket)
                     manageConnectedSocket(socket)
                 } catch (e: IOException) {
                     if (isRunning) {
-                        Log.w(TAG, "server.accept() IOException: ${e.message}. Recreating server socket in 1s...")
+                        acceptFailureCount++
+                        Log.w(TAG, "server.accept() IOException: ${e.message} (failure #$acceptFailureCount). Recreating server socket in 1s...")
                         closeQuietly(serverSocket)
                         serverSocket = null
+                        if (acceptFailureCount >= 10) {
+                            acceptFailureCount = 0
+                            restartBluetoothStack("ServerSocket 连续 10 次接收失败，触发自愈")
+                        }
                         try {
                             Thread.sleep(1000)
                         } catch (_: InterruptedException) {
@@ -364,9 +431,14 @@ class BluetoothServerManager(
                     }
                 } catch (e: Exception) {
                     if (isRunning) {
+                        acceptFailureCount++
                         Log.e(TAG, "Unexpected error in accept loop: ${e.message}", e)
                         closeQuietly(serverSocket)
                         serverSocket = null
+                        if (acceptFailureCount >= 10) {
+                            acceptFailureCount = 0
+                            restartBluetoothStack("ServerSocket 异常超过 10 次，触发自愈")
+                        }
                         try {
                             Thread.sleep(2000)
                         } catch (_: InterruptedException) {

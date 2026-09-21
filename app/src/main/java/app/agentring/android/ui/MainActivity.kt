@@ -57,6 +57,13 @@ class MainActivity : AppCompatActivity(), BluetoothServerManager.Listener {
         bluetoothManager = BluetoothServerManager(this, this)
         binding.deviceBtNameView.text = bluetoothManager?.deviceBluetoothName ?: "AgentRing"
 
+        binding.connectionStatusLayout.setOnClickListener {
+            if (bluetoothManager?.isConnected != true) {
+                Toast.makeText(this, "正在重新初始化蓝牙服务…", Toast.LENGTH_SHORT).show()
+                bluetoothManager?.restartBluetoothStack("用户手动点击重置")
+            }
+        }
+
         registerReceiver(mockDataReceiver, android.content.IntentFilter("app.agentring.android.MOCK_DATA"))
 
         checkAndRequestPermissions()
